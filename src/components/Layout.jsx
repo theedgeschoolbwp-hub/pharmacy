@@ -1,10 +1,10 @@
 import { useAuth } from '../context/AuthContext'
-import { useNavigate, Link, useLocation } from 'react-router-dom'
+import { useNavigate, Link, useLocation, Outlet } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../services/supabase'
 import { hasFeature } from '../utils/featureGate'
 
-function Layout({ children }) {
+function Layout() {
   const { user, logout, stopImpersonating } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -429,8 +429,8 @@ function Layout({ children }) {
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 custom-scrollbar relative">
-          <div className="mx-auto w-full h-full p-4 md:p-6 lg:p-8">
-            {children}
+          <div className="mx-auto w-full h-full">
+            <Outlet />
           </div>
         </main>
       </div>

@@ -23,7 +23,15 @@ export default function Suppliers() {
   const [paymentSupplier, setPaymentSupplier] = useState(null)
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentNote, setPaymentNote] = useState('')
-  const isOnline = navigator.onLine
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+
+  useEffect(() => {
+    const on = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)

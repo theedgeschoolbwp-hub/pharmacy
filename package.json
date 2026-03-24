@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
     "@tailwindcss/vite": "^4.0.0",
+    "caniuse-lite": "^1.0.30001781",
     "cors": "^2.8.6",
     "dexie": "^4.3.0",
     "dotenv": "^17.3.1",

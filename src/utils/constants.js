@@ -96,6 +96,12 @@ export const CURRENCY_CODE = 'PKR'
 export const RECEIPT_FOOTER = 'Thank you for visiting PharmaCare!'
 export const SHOW_PRESCRIPTION_FLAG = true
 
+// Discount modes
+export const DISCOUNT_TYPES = [
+  { value: 'flat', label: 'Rs.' },
+  { value: 'percent', label: '%' },
+]
+
 // Controlled substances flag
 export const CONTROLLED_DRUG_LABEL = '⚠️ Prescription Required'
 

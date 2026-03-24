@@ -1,239 +1,253 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
-import { useAuth } from '../context/AuthContext';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  Calendar, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  PieChart as PieChartIcon,
-  Activity,
-  BarChart as BarChartIcon
-} from 'lucide-react';
-import { clsx } from 'clsx';
-import styles from './ProfitLoss.module.css';
-import { useLanguage } from '../context/LanguageContext';
-import { translations } from '../utils/translations';
+import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../services/supabase'
+import { useAuth } from '../context/AuthContext'
+import db from '../services/db'
+import { CURRENCY } from '../utils/constants'
+import { TrendingUp, TrendingDown, DollarSign, BarChart2, ShoppingCart, Package } from 'lucide-react'
 
-const ProfitLoss = () => {
-  const { shop } = useAuth();
-  const { language } = useLanguage();
-  const t = translations[language];
-  const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('Month'); // Today, Week, Month
-  
-  const [financials, setFinancials] = useState({
+const FILTERS = [
+  { label: 'Today', value: 'today' },
+  { label: 'This Week', value: 'week' },
+  { label: 'This Month', value: 'month' },
+  { label: 'Last Month', value: 'last_month' },
+]
+
+function getDateRange(filter) {
+  const now = new Date()
+  let start, end
+  switch (filter) {
+    case 'today':
+      start = new Date(now); start.setHours(0, 0, 0, 0)
+      end = new Date(now); end.setHours(23, 59, 59, 999)
+      break
+    case 'week': {
+      const day = now.getDay()
+      start = new Date(now); start.setDate(now.getDate() - day); start.setHours(0, 0, 0, 0)
+      end = new Date(now); end.setHours(23, 59, 59, 999)
+      break
+    }
+    case 'month':
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+      end = new Date(now); end.setHours(23, 59, 59, 999)
+      break
+    case 'last_month':
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
+      break
+    default:
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+      end = new Date(now)
+  }
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
+export default function ProfitLoss() {
+  const { user } = useAuth()
+  const shopId = user?.shop_id
+
+  const [filter, setFilter] = useState('month')
+  const [loading, setLoading] = useState(true)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [data, setData] = useState({
     revenue: 0,
+    cogs: 0,
+    grossProfit: 0,
     expenses: 0,
-    profit: 0,
+    netProfit: 0,
+    salesCount: 0,
     expenseBreakdown: [],
-    revenueBreakdown: { orders: 0, payments: 0 }
-  });
+  })
 
   useEffect(() => {
-    if (shop) fetchFinancialData();
-  }, [shop, filter]);
+    const on = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
-  const fetchFinancialData = async () => {
+  const load = useCallback(async () => {
+    setLoading(true)
+    const { start, end } = getDateRange(filter)
     try {
-      setLoading(true);
-      const now = new Date();
-      let startDate;
-      
-      if (filter === 'Today') {
-        startDate = new Date(now.setHours(0,0,0,0)).toISOString();
-      } else if (filter === 'Week') {
-        startDate = new Date(now.setDate(now.getDate() - 7)).toISOString();
+      if (isOnline) {
+        const [salesRes, itemsRes, expRes] = await Promise.all([
+          supabase.from('sales')
+            .select('id, total_amount, paid_amount, discount')
+            .eq('shop_id', shopId)
+            .gte('created_at', start)
+            .lte('created_at', end),
+          supabase.from('sale_items')
+            .select('quantity, unit_price, purchase_price, discount, total, sale_id')
+            .in('sale_id',
+              (await supabase.from('sales').select('id').eq('shop_id', shopId).gte('created_at', start).lte('created_at', end)).data?.map(s => s.id) || []
+            ),
+          supabase.from('expenses')
+            .select('amount, category')
+            .eq('shop_id', shopId)
+            .gte('created_at', start)
+            .lte('created_at', end),
+        ])
+
+        const sales = salesRes.data || []
+        const items = itemsRes.data || []
+        const exps = expRes.data || []
+
+        const revenue = sales.reduce((s, x) => s + (x.paid_amount || 0), 0)
+        const cogs = items.reduce((s, i) => s + (i.purchase_price || 0) * (i.quantity || 0), 0)
+        const grossProfit = revenue - cogs
+        const expenses = exps.reduce((s, e) => s + (e.amount || 0), 0)
+        const netProfit = grossProfit - expenses
+
+        const catMap = {}
+        exps.forEach(e => {
+          catMap[e.category || 'General'] = (catMap[e.category || 'General'] || 0) + (e.amount || 0)
+        })
+        const expenseBreakdown = Object.entries(catMap).map(([cat, amt]) => ({ cat, amt })).sort((a, b) => b.amt - a.amt)
+
+        setData({ revenue, cogs, grossProfit, expenses, netProfit, salesCount: sales.length, expenseBreakdown })
       } else {
-        startDate = new Date(now.setMonth(now.getMonth() - 1)).toISOString();
+        // Offline fallback from IndexedDB
+        const allSales = await db.sales
+          .filter(s => s.shop_id === shopId && s.created_at >= start && s.created_at <= end)
+          .toArray()
+        const allItems = await db.sale_items
+          .filter(i => allSales.some(s => s.id === i.sale_id))
+          .toArray()
+        const allExps = await db.expenses
+          .filter(e => e.shop_id === shopId && e.created_at >= start && e.created_at <= end)
+          .toArray()
+
+        const revenue = allSales.reduce((s, x) => s + (x.paid_amount || 0), 0)
+        const cogs = allItems.reduce((s, i) => s + (i.purchase_price || 0) * (i.quantity || 0), 0)
+        const grossProfit = revenue - cogs
+        const expenses = allExps.reduce((s, e) => s + (e.amount || 0), 0)
+        const netProfit = grossProfit - expenses
+
+        const catMap = {}
+        allExps.forEach(e => {
+          catMap[e.category || 'General'] = (catMap[e.category || 'General'] || 0) + (e.amount || 0)
+        })
+        const expenseBreakdown = Object.entries(catMap).map(([cat, amt]) => ({ cat, amt })).sort((a, b) => b.amt - a.amt)
+
+        setData({ revenue, cogs, grossProfit, expenses, netProfit, salesCount: allSales.length, expenseBreakdown })
       }
-
-      // 1. Fetch Revenue (Payments + Orders Advance)
-      const { data: payments } = await supabase
-        .from('payments')
-        .select('amount, type, order_id')
-        .eq('shop_id', shop.id)
-        .gte('recorded_at', startDate);
-
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('advance_payment')
-        .eq('shop_id', shop.id)
-        .gte('created_at', startDate);
-
-      // 2. Fetch Expenses
-      const { data: expenses } = await supabase
-        .from('expenses')
-        .select('amount, category, custom_category')
-        .eq('shop_id', shop.id)
-        .gte('recorded_at', startDate);
-
-      let totalRevenue = 0;
-      let orderRevenue = 0;
-      let directRevenue = 0;
-
-      const orderIdsWithPayments = new Set(payments?.filter(p => p.order_id).map(p => p.order_id) || []);
-
-      orders?.forEach(o => {
-        if (!orderIdsWithPayments.has(o.id)) {
-          const val = parseFloat(o.advance_payment || 0);
-          totalRevenue += val;
-          orderRevenue += val;
-        }
-      });
-
-      payments?.forEach(p => {
-        const val = parseFloat(p.amount || 0);
-        totalRevenue += val;
-        if (p.type === 'Advance') {
-          orderRevenue += val;
-        } else {
-          directRevenue += val;
-        }
-      });
-
-      let totalExpenses = 0;
-      const breakdown = {};
-
-      expenses?.forEach(e => {
-        const val = parseFloat(e.amount || 0);
-        totalExpenses += val;
-        const cat = e.category === 'Other' ? e.custom_category : e.category;
-        breakdown[cat] = (breakdown[cat] || 0) + val;
-      });
-
-      const expenseList = Object.entries(breakdown)
-        .map(([name, amount]) => ({ name, amount }))
-        .sort((a, b) => b.amount - a.amount);
-
-      setFinancials({
-        revenue: totalRevenue,
-        expenses: totalExpenses,
-        profit: totalRevenue - totalExpenses,
-        expenseBreakdown: expenseList,
-        revenueBreakdown: { orders: orderRevenue, payments: directRevenue }
-      });
-
     } catch (err) {
-      console.error(err.message);
+      console.error(err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }, [shopId, filter, isOnline])
+
+  useEffect(() => { load() }, [load])
+
+  const fmt = n => `${CURRENCY}${Math.abs(n || 0).toLocaleString()}`
+  const isProfit = data.netProfit >= 0
 
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
+    <div className="p-4 md:p-6 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className={styles.title}>{t.profit_loss_title}</h1>
-          <p className={styles.subtitle}>{t.pl_subtitle}</p>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <BarChart2 size={22} className="text-blue-600" /> Profit & Loss
+          </h1>
+          <p className="text-xs text-gray-400 mt-0.5">Financial performance summary</p>
         </div>
-        <div className={styles.filterGroup}>
-          {['Today', 'Week', 'Month'].map(f => (
-            <button 
-              key={f}
-              className={clsx(styles.filterBtn, filter === f && styles.active)}
-              onClick={() => setFilter(f)}
-            >
-              {f === 'Today' ? t.today : f === 'Week' ? t.this_week : t.this_month}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          {FILTERS.map(f => (
+            <button key={f.value} onClick={() => setFilter(f.value)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${filter === f.value ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
+              {f.label}
             </button>
           ))}
         </div>
-      </header>
+      </div>
 
       {loading ? (
-        <div className={styles.loading}>{t.analyzing_financials}</div>
+        <div className="flex items-center justify-center h-40"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
       ) : (
         <>
-          <div className={styles.summaryGrid}>
-            <div className={clsx("premium-card", styles.card)}>
-              <div className={clsx(styles.cardIcon, styles.revenue)}>
-                <TrendingUp size={28} />
+          {/* P&L Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <ShoppingCart size={16} className="text-blue-500" />
+                <p className="text-xs text-blue-500 font-medium uppercase">Revenue</p>
               </div>
-              <span className={styles.cardLabel}>{t.total_revenue}</span>
-              <h2 className={styles.cardValue}>₨ {financials.revenue.toLocaleString()}</h2>
-              <div className={styles.comparison}>
-                 <ArrowUpRight size={14} className={styles.pos} />
-                 <span className={styles.pos}>{t.revenue_hint}</span>
-              </div>
+              <p className="text-2xl font-bold text-blue-700">{fmt(data.revenue)}</p>
+              <p className="text-xs text-blue-400 mt-0.5">{data.salesCount} sales</p>
             </div>
-
-            <div className={clsx("premium-card", styles.card)}>
-              <div className={clsx(styles.cardIcon, styles.expense)}>
-                <TrendingDown size={28} />
+            <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Package size={16} className="text-red-500" />
+                <p className="text-xs text-red-500 font-medium uppercase">Cost of Goods</p>
               </div>
-              <span className={styles.cardLabel}>{t.total_expenses}</span>
-              <h2 className={styles.cardValue}>₨ {financials.expenses.toLocaleString()}</h2>
-              <div className={styles.comparison}>
-                 <ArrowDownRight size={14} className={styles.neg} />
-                 <span className={styles.neg}>{t.expense_hint}</span>
-              </div>
+              <p className="text-2xl font-bold text-red-700">{fmt(data.cogs)}</p>
+              <p className="text-xs text-red-400 mt-0.5">purchase cost</p>
             </div>
-
-            <div className={clsx("premium-card", styles.card)}>
-              <div className={clsx(styles.cardIcon, styles.profit)}>
-                <Activity size={28} />
+            <div className="bg-teal-50 border border-teal-100 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp size={16} className="text-teal-500" />
+                <p className="text-xs text-teal-500 font-medium uppercase">Gross Profit</p>
               </div>
-              <span className={styles.cardLabel}>{t.net_profit}</span>
-              <h2 className={styles.cardValue}>₨ {financials.profit.toLocaleString()}</h2>
-              <div className={styles.comparison}>
-                 <TrendingUp size={14} className={financials.profit >= 0 ? styles.pos : styles.neg} />
-                 <span className={financials.profit >= 0 ? styles.pos : styles.neg}>
-                   {financials.profit >= 0 ? t.surplus : t.deficit}
-                 </span>
+              <p className="text-2xl font-bold text-teal-700">{fmt(data.grossProfit)}</p>
+              <p className="text-xs text-teal-400 mt-0.5">
+                {data.revenue > 0 ? `${((data.grossProfit / data.revenue) * 100).toFixed(1)}% margin` : '—'}
+              </p>
+            </div>
+            <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingDown size={16} className="text-orange-500" />
+                <p className="text-xs text-orange-500 font-medium uppercase">Expenses</p>
               </div>
+              <p className="text-2xl font-bold text-orange-700">{fmt(data.expenses)}</p>
+              <p className="text-xs text-orange-400 mt-0.5">{data.expenseBreakdown.length} categories</p>
+            </div>
+            <div className={`col-span-2 md:col-span-1 ${isProfit ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'} border rounded-xl p-4`}>
+              <div className="flex items-center gap-2 mb-1">
+                <DollarSign size={16} className={isProfit ? 'text-green-500' : 'text-red-500'} />
+                <p className={`text-xs font-medium uppercase ${isProfit ? 'text-green-500' : 'text-red-500'}`}>Net Profit</p>
+              </div>
+              <p className={`text-2xl font-bold ${isProfit ? 'text-green-700' : 'text-red-700'}`}>
+                {isProfit ? '' : '-'}{fmt(data.netProfit)}
+              </p>
+              <p className={`text-xs mt-0.5 ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                {isProfit ? 'Profitable period' : 'Loss period'}
+              </p>
             </div>
           </div>
 
-          <div className={styles.contentGrid}>
-            <div className={clsx("premium-card", styles.section)}>
-              <div className={styles.sectionHeader}>
-                <h3 className={styles.sectionTitle}>{t.expense_breakdown}</h3>
-                <PieChartIcon size={20} color="var(--text-secondary)" />
+          {/* Expense Breakdown */}
+          {data.expenseBreakdown.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-700">Expense Breakdown</h2>
               </div>
-              <div className={styles.categoryList}>
-                {financials.expenseBreakdown.map(item => (
-                  <div key={item.name} className={styles.categoryItem}>
-                    <div className={styles.catInfo}>
-                      <div className={styles.catBullet} />
-                      <span className={styles.catName}>{item.name === 'Salary' ? t.salary : item.name === 'Materials' ? t.materials : item.name === 'Utilities' ? t.utilities : item.name === 'Rent' ? t.rent : item.name === 'Other' ? t.other : item.name}</span>
+              <div className="divide-y divide-gray-50">
+                {data.expenseBreakdown.map(({ cat, amt }) => (
+                  <div key={cat} className="flex items-center justify-between px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-orange-400" />
+                      <span className="text-sm text-gray-700">{cat}</span>
                     </div>
-                    <span className={styles.catAmount}>₨ {item.amount.toLocaleString()}</span>
+                    <div className="text-right">
+                      <span className="text-sm font-semibold text-gray-800">{fmt(amt)}</span>
+                      {data.expenses > 0 && (
+                        <span className="text-xs text-gray-400 ml-2">{((amt / data.expenses) * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
                   </div>
                 ))}
-                {financials.expenseBreakdown.length === 0 && <p>{t.no_expenses_period}</p>}
-              </div>
-            </div>
-
-            <div className={clsx("premium-card", styles.section)}>
-              <div className={styles.sectionHeader}>
-                <h3 className={styles.sectionTitle}>{t.revenue_sources}</h3>
-                <BarChartIcon size={20} color="var(--text-secondary)" />
-              </div>
-              <div className={styles.categoryList}>
-                <div className={styles.categoryItem}>
-                  <div className={styles.catInfo}>
-                    <div className={styles.catBullet} style={{ background: '#22c55e' }} />
-                    <span className={styles.catName}>{t.order_advances}</span>
-                  </div>
-                  <span className={styles.catAmount}>₨ {financials.revenueBreakdown.orders.toLocaleString()}</span>
-                </div>
-                <div className={styles.categoryItem}>
-                  <div className={styles.catInfo}>
-                    <div className={styles.catBullet} style={{ background: '#3b82f6' }} />
-                    <span className={styles.catName}>{t.direct_payments}</span>
-                  </div>
-                  <span className={styles.catAmount}>₨ {financials.revenueBreakdown.payments.toLocaleString()}</span>
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 font-bold text-sm">
+                  <span className="text-gray-700">Total Expenses</span>
+                  <span className="text-orange-700">{fmt(data.expenses)}</span>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>
-  );
-};
-
-export default ProfitLoss;
+  )
+}

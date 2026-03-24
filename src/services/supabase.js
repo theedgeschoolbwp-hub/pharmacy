@@ -112,10 +112,11 @@ export const rlsSession = new RLSSessionManager()
 // ============================================================================
 
 /**
- * Enhanced Supabase client that automatically ensures RLS session
- * Use this for all database operations in your app
+ * Enhanced Supabase client that automatically ensures RLS session.
+ * Named supabaseDb to avoid collision with the Dexie `db` default export in db.js.
+ * Import as: import { supabaseDb } from '../services/supabase'
  */
-export const db = {
+export const supabaseDb = {
     /**
      * SELECT with automatic session check
      */

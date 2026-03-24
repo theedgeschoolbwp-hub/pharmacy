@@ -4,56 +4,36 @@ import Dexie from 'dexie'
 const db = new Dexie('PharmacareDB')
 
 db.version(1).stores({
-  // Products / medicines catalogue
   products: '++id, shop_id, name, generic_name, barcode, category, unit, requires_prescription, is_active, shelf_location, created_at',
-
-  // FIFO stock batches — each purchase creates one or more batches
   product_batches: '++id, shop_id, product_id, batch_number, expiry_date, quantity_remaining, purchase_price, sale_price, created_at',
-
-  // Customers (credit accounts)
   customers: '++id, shop_id, name, phone, balance, is_active, created_at',
-
-  // Suppliers
   suppliers: '++id, shop_id, name, phone, company, balance, is_active, created_at',
-
-  // Sales (invoices)
   sales: '++id, shop_id, customer_id, total_amount, discount, paid_amount, payment_type, prescription_number, served_by, created_at, synced',
-
-  // Sale line items (includes batch info for FIFO traceability)
   sale_items: '++id, sale_id, product_id, batch_id, quantity, unit_price, discount, total, expiry_date',
-
-  // Customer payments (credit settlements)
   customer_payments: '++id, shop_id, customer_id, amount, payment_type, note, created_at, synced',
-
-  // Purchases (stock receipts)
   purchases: '++id, shop_id, supplier_id, invoice_number, total_amount, paid_amount, payment_type, status, created_at, synced',
-
-  // Purchase line items — each line creates a product_batch
   purchase_items: '++id, purchase_id, product_id, batch_number, expiry_date, quantity, purchase_price, sale_price, bonus_qty',
-
-  // Supplier payments
   supplier_payments: '++id, shop_id, supplier_id, amount, payment_type, note, created_at, synced',
-
-  // Expenses
   expenses: '++id, shop_id, category, amount, description, date, created_by, created_at, synced',
-
-  // Employees
   employees: '++id, shop_id, name, role, phone, salary, is_active, created_at',
-
-  // Employee salary payments
   employee_payments: '++id, shop_id, employee_id, amount, month, note, created_at, synced',
-
-  // Users (login accounts)
   users: '++id, shop_id, username, password_hash, role, is_active',
-
-  // Audit log
   audit_log: '++id, shop_id, action, table_name, record_id, old_value, new_value, performed_by, created_at',
-
-  // Sync queue — pending operations
   sync_queue: '++id, operation, table_name, record_id, payload, created_at, retries',
-
-  // Trash — soft-deleted records (offline)
   trash_items: '++id, table_name, record_id, deleted_by, deleted_at',
+})
+
+// Phase 1 — adds sale returns, return items, held sales
+db.version(2).stores({
+  sale_returns: '++id, sale_id, shop_id, return_amount, reason, created_at',
+  sale_return_items: '++id, return_id, sale_item_id, product_id, batch_id, quantity, unit_price, total',
+  held_sales: '++id, shop_id, customer_id, cart, created_at',
+})
+
+// Handle version conflicts gracefully (auto-close & reopen)
+db.on('versionchange', () => {
+  db.close()
+  return false
 })
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -181,8 +161,22 @@ export async function queueSync(operation, tableName, recordId, payload) {
 
 // ─── Named exports for backward-compatibility with template pages ────────────
 
-/** Alias for queueSync — used by template pages like Expenses.jsx */
-export const addToSyncQueue = queueSync
+/**
+ * addToSyncQueue(tableName, operation, data)
+ * Callers (Expenses, TrashBin, etc.) use this signature:
+ *   addToSyncQueue('expenses', 'INSERT', { ...data })
+ * This wrapper reorders args to match queueSync and extracts record_id from data.id.
+ */
+export async function addToSyncQueue(tableName, operation, data) {
+  await db.sync_queue.add({
+    operation,
+    table_name: tableName,
+    record_id: data?.id ?? null,
+    payload: JSON.stringify(data),
+    created_at: new Date().toISOString(),
+    retries: 0,
+  })
+}
 
 /**
  * Soft-delete a record by moving it to the trash table (IndexedDB).

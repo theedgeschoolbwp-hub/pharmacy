@@ -551,6 +551,59 @@ END;
 $$;
 
 -- =============================================================================
+-- 22b. SHOP STATUS & CONFIG RPCs (used by ProtectedRoute + Layout)
+-- =============================================================================
+
+-- Returns the shop's current status text ('active', 'suspended', 'trial')
+CREATE OR REPLACE FUNCTION get_shop_status(p_shop_id BIGINT)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+AS $$
+DECLARE
+    v_status TEXT;
+BEGIN
+    SELECT s.status INTO v_status
+    FROM shops s
+    WHERE s.id = p_shop_id;
+
+    RETURN COALESCE(v_status, 'active');
+END;
+$$;
+
+-- Returns shop config as JSONB (plan info, settings, etc.)
+CREATE OR REPLACE FUNCTION get_shop_config(p_shop_id BIGINT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+AS $$
+DECLARE
+    v_shop shops%ROWTYPE;
+BEGIN
+    SELECT * INTO v_shop
+    FROM shops
+    WHERE id = p_shop_id;
+
+    IF NOT FOUND THEN
+        RETURN '{}'::JSONB;
+    END IF;
+
+    RETURN jsonb_build_object(
+        'shop_id',           v_shop.id,
+        'name',              v_shop.name,
+        'plan_name',         v_shop.plan_name,
+        'subscription_plan', v_shop.subscription_plan,
+        'subscription_fee',  v_shop.subscription_fee,
+        'next_billing_date', v_shop.next_billing_date,
+        'status',            v_shop.status,
+        'settings',          v_shop.settings
+    );
+END;
+$$;
+
+-- =============================================================================
 -- 23. ROW LEVEL SECURITY
 -- =============================================================================
 -- Since this app uses custom auth (no Supabase JWT), we allow anon key access

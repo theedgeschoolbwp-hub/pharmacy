@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import db from '../services/db'
@@ -27,7 +27,15 @@ export default function Products() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [stockMap, setStockMap] = useState({})
-  const isOnline = navigator.onLine
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+
+  useEffect(() => {
+    const on = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
   // ── Load ────────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {

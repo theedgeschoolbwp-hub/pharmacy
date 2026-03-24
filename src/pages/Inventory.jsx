@@ -18,9 +18,9 @@
  * Supabase tables used
  * ─────────────────────
  *   products       — id, name, (any other product fields)
- *   inventory_batches — id, shop_id, product_id, batch_number,
+ *   product_batches — id, shop_id, product_id, batch_number,
  *                       manufacture_date, expiry_date, purchase_price,
- *                       sale_price_override, qty_received, qty_remaining,
+ *                       sale_price, quantity_received, quantity_remaining,
  *                       rack_no, bin_no, created_at
  *
  * All queries are automatically scoped to user.shop_id so this page is
@@ -159,8 +159,8 @@ function FIFO_Inventory() {
     manufacture_date:     '',
     expiry_date:          '',
     purchase_price:       '',
-    sale_price_override:  '',
-    qty_received:         '',
+    sale_price:  '',
+    quantity_received:         '',
     rack_no:              '',
     bin_no:               '',
   }
@@ -180,11 +180,11 @@ function FIFO_Inventory() {
     setLoading(true)
     try {
       const { data, error } = await supabase
-        .from('inventory_batches')
+        .from('product_batches')
         .select(`
           id, batch_number, manufacture_date, expiry_date,
-          purchase_price, sale_price_override,
-          qty_received, qty_remaining, rack_no, bin_no, created_at,
+          purchase_price, sale_price,
+          quantity_received, quantity_remaining, rack_no, bin_no, created_at,
           products ( id, name )
         `)
         .eq('shop_id', shopId)
@@ -236,7 +236,7 @@ function FIFO_Inventory() {
   const alerts = useMemo(() => {
     let expired = 0, expiring30 = 0, expiring90 = 0
     batches.forEach(b => {
-      if (b.qty_remaining <= 0) return // skip depleted batches
+      if (b.quantity_remaining <= 0) return // skip depleted batches
       const days = daysUntilExpiry(b.expiry_date)
       if (days === null) return
       if (days < 0)       expired++
@@ -259,8 +259,8 @@ function FIFO_Inventory() {
 
       // Low stock filter — batches with <= 10% of received qty remaining
       if (showLowStockOnly) {
-        const threshold = Math.max(5, (b.qty_received || 100) * 0.1)
-        if (b.qty_remaining > threshold) return false
+        const threshold = Math.max(5, (b.quantity_received || 100) * 0.1)
+        if (b.quantity_remaining > threshold) return false
       }
 
       // Product filter
@@ -284,7 +284,7 @@ function FIFO_Inventory() {
     const map = {}
     batches.forEach(b => {
       const days = daysUntilExpiry(b.expiry_date)
-      if (b.qty_remaining <= 0) return
+      if (b.quantity_remaining <= 0) return
       if (days !== null && days < 0 && !showExpired) return
       const rack = b.rack_no || 'Unassigned'
       if (!map[rack]) map[rack] = []
@@ -301,22 +301,22 @@ function FIFO_Inventory() {
 
   async function handleAddBatch(e) {
     e.preventDefault()
-    if (!batchForm.product_id || !batchForm.expiry_date || !batchForm.qty_received) {
+    if (!batchForm.product_id || !batchForm.expiry_date || !batchForm.quantity_received) {
       showToast('Product, expiry date, and quantity received are required.', 'error')
       return
     }
     setSaving(true)
     try {
-      const { error } = await supabase.from('inventory_batches').insert({
+      const { error } = await supabase.from('product_batches').insert({
         shop_id:              shopId,
         product_id:           batchForm.product_id,
         batch_number:         batchForm.batch_number  || null,
         manufacture_date:     batchForm.manufacture_date || null,
         expiry_date:          batchForm.expiry_date,
         purchase_price:       batchForm.purchase_price       ? Number(batchForm.purchase_price)      : null,
-        sale_price_override:  batchForm.sale_price_override  ? Number(batchForm.sale_price_override) : null,
-        qty_received:         Number(batchForm.qty_received),
-        qty_remaining:        Number(batchForm.qty_received), // starts full
+        sale_price:  batchForm.sale_price  ? Number(batchForm.sale_price) : null,
+        quantity_received:         Number(batchForm.quantity_received),
+        quantity_remaining:        Number(batchForm.quantity_received), // starts full
         rack_no:              batchForm.rack_no || null,
         bin_no:               batchForm.bin_no  || null,
       })
@@ -349,10 +349,10 @@ function FIFO_Inventory() {
 
     // Batches for this product, sorted by expiry ASC (FIFO order)
     const productBatches = batches
-      .filter(b => b.products?.id === productId && b.qty_remaining > 0)
+      .filter(b => b.products?.id === productId && b.quantity_remaining > 0)
       .sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date))
 
-    const totalAvailable = productBatches.reduce((sum, b) => sum + b.qty_remaining, 0)
+    const totalAvailable = productBatches.reduce((sum, b) => sum + b.quantity_remaining, 0)
     const needed = Number(qtyNeeded)
 
     if (needed > totalAvailable) {
@@ -367,7 +367,7 @@ function FIFO_Inventory() {
     let remaining = needed
     for (const batch of productBatches) {
       if (remaining <= 0) break
-      const take = Math.min(batch.qty_remaining, remaining)
+      const take = Math.min(batch.quantity_remaining, remaining)
       plan.push({ ...batch, take })
       remaining -= take
     }
@@ -379,12 +379,12 @@ function FIFO_Inventory() {
     if (!dispatchPreview.length) return
     setDispatchLoading(true)
     try {
-      // Update each affected batch — decrement qty_remaining
+      // Update each affected batch — decrement quantity_remaining
       for (const item of dispatchPreview) {
-        const newQty = item.qty_remaining - item.take
+        const newQty = item.quantity_remaining - item.take
         const { error } = await supabase
-          .from('inventory_batches')
-          .update({ qty_remaining: newQty })
+          .from('product_batches')
+          .update({ quantity_remaining: newQty })
           .eq('id', item.id)
           .eq('shop_id', shopId)
 
@@ -510,9 +510,9 @@ function FIFO_Inventory() {
                     {[batch.rack_no, batch.bin_no].filter(Boolean).join(' / ') || '—'}
                   </td>
                   <td className="px-4 py-3 text-gray-800 font-semibold">
-                    {batch.qty_remaining}
+                    {batch.quantity_remaining}
                     <span className="text-gray-400 font-normal text-xs ml-1">
-                      / {batch.qty_received}
+                      / {batch.quantity_received}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600 font-mono">
@@ -621,7 +621,7 @@ function FIFO_Inventory() {
                           -{item.take}
                         </p>
                         <p className="text-xs text-gray-400">
-                          of {item.qty_remaining} avail.
+                          of {item.quantity_remaining} avail.
                         </p>
                       </div>
                     </div>
@@ -710,7 +710,7 @@ function FIFO_Inventory() {
                     </div>
                     <div className="flex flex-col items-end ml-3 shrink-0">
                       <span className="text-sm font-bold text-gray-700">
-                        {batch.qty_remaining}
+                        {batch.quantity_remaining}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full mt-1 ${status.badge}`}>
                         {status.label}
@@ -934,8 +934,8 @@ function FIFO_Inventory() {
                 min="0"
                 step="0.01"
                 placeholder="Leave blank to use default"
-                value={batchForm.sale_price_override}
-                onChange={(e) => handleBatchFormChange('sale_price_override', e.target.value)}
+                value={batchForm.sale_price}
+                onChange={(e) => handleBatchFormChange('sale_price', e.target.value)}
                 className={inputCls}
               />
             </Field>
@@ -946,8 +946,8 @@ function FIFO_Inventory() {
               type="number"
               min="1"
               placeholder="e.g. 200"
-              value={batchForm.qty_received}
-              onChange={(e) => handleBatchFormChange('qty_received', e.target.value)}
+              value={batchForm.quantity_received}
+              onChange={(e) => handleBatchFormChange('quantity_received', e.target.value)}
               className={inputCls}
               required
             />

@@ -22,10 +22,12 @@ function TrashBin() {
     const fetchTrash = async () => {
         setLoading(true)
         try {
-            const all = await db.trash.toArray()
+            const all = await db.trash_items.toArray()
             const sid = String(user.shop_id)
             const filtered = all
-                .filter(x => String(x.shop_id) === sid)
+                .filter(x => {
+                    try { return String(JSON.parse(x.data || '{}').shop_id) === sid } catch { return true }
+                })
                 .sort((a, b) => new Date(b.deleted_at) - new Date(a.deleted_at))
             setTrashItems(filtered)
         } catch (err) {
@@ -36,12 +38,14 @@ function TrashBin() {
     }
 
     const getItemLabel = (item) => {
-        const d = item.data
-        if (d?.name) return d.name
-        if (d?.product_name) return d.product_name
-        if (d?.note) return d.note
-        if (d?.category) return `${d.category} - Rs. ${d.amount}`
-        return `#${String(item.original_id).slice(-8)}`
+        try {
+            const d = JSON.parse(item.data || '{}')
+            if (d?.name) return d.name
+            if (d?.product_name) return d.product_name
+            if (d?.note) return d.note
+            if (d?.category) return `${d.category} - Rs. ${d.amount}`
+        } catch {}
+        return `#${String(item.record_id || item.id).slice(-8)}`
     }
 
     const tableLabels = {
@@ -59,17 +63,18 @@ function TrashBin() {
         try {
             for (const item of items) {
                 // Restore to local DB
-                await restoreFromTrash(item)
+                await restoreFromTrash(item.id)
 
+                const record = JSON.parse(item.data || '{}')
                 // Try to restore to Supabase
                 if (navigator.onLine) {
                     try {
-                        await supabase.from(item.original_table).upsert([item.data])
+                        await supabase.from(item.table_name).upsert([record])
                     } catch (e) {
-                        await addToSyncQueue(item.original_table, 'INSERT', item.data)
+                        await addToSyncQueue(item.table_name, 'INSERT', record)
                     }
                 } else {
-                    await addToSyncQueue(item.original_table, 'INSERT', item.data)
+                    await addToSyncQueue(item.table_name, 'INSERT', record)
                 }
             }
 
@@ -84,7 +89,7 @@ function TrashBin() {
     const handlePermanentDelete = async (items) => {
         try {
             for (const item of items) {
-                await db.trash.delete(item.id)
+                await db.trash_items.delete(item.id)
             }
             alert(`🗑️ ${items.length} item(s) permanently deleted!`)
             setSelected([])
@@ -121,9 +126,9 @@ function TrashBin() {
         }
     }
 
-    const filtered = trashItems.filter(x => filterTable ? x.original_table === filterTable : true)
+    const filtered = trashItems.filter(x => filterTable ? x.table_name === filterTable : true)
 
-    const uniqueTables = [...new Set(trashItems.map(x => x.original_table))]
+    const uniqueTables = [...new Set(trashItems.map(x => x.table_name))]
 
     if (!hasFeature('trash_bin')) return <UpgradeWall feature="trash_bin" />
 
@@ -142,7 +147,7 @@ function TrashBin() {
                     >
                         <option value="">All Types ({trashItems.length})</option>
                         {uniqueTables.map(t => (
-                            <option key={t} value={t}>{tableLabels[t] || t} ({trashItems.filter(x => x.original_table === t).length})</option>
+                            <option key={t} value={t}>{tableLabels[t] || t} ({trashItems.filter(x => x.table_name === t).length})</option>
                         ))}
                     </select>
 
@@ -218,7 +223,7 @@ function TrashBin() {
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-[10px] font-bold uppercase">
-                                            {tableLabels[item.original_table] || item.original_table}
+                                            {tableLabels[item.table_name] || item.table_name}
                                         </span>
                                     </td>
                                     <td className="px-4 py-3 font-medium text-gray-800">{getItemLabel(item)}</td>

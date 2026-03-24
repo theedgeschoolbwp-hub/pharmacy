@@ -15,7 +15,15 @@ export default function CustomerLedger() {
   const [customer, setCustomer] = useState(null)
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
-  const isOnline = navigator.onLine
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+
+  useEffect(() => {
+    const on = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
