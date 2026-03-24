@@ -49,7 +49,7 @@ function ProtectedRoute({ children, allowedRoles, requiredModule }) {
     }
   }, [user])
 
-  if (!user) return <Navigate to="/" />
+  if (!user) return <Navigate to="/login" />
 
   if (isChecking) {
     return (
