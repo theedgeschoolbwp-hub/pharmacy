@@ -70,11 +70,11 @@ function Expenses() {
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
 
     const todayTotal = data
-      .filter(e => new Date(e.created_at) >= today)
+      .filter(e => new Date(e.date || e.created_at) >= today)
       .reduce((sum, e) => sum + Number(e.amount), 0)
 
     const monthlyTotal = data
-      .filter(e => new Date(e.created_at) >= firstOfMonth)
+      .filter(e => new Date(e.date || e.created_at) >= firstOfMonth)
       .reduce((sum, e) => sum + Number(e.amount), 0)
 
     setSummary({ today: todayTotal, monthly: monthlyTotal })
@@ -369,7 +369,7 @@ function Expenses() {
                       className="w-4 h-4 rounded"
                     />
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{new Date(exp.created_at).toLocaleDateString('en-PK')}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{new Date(exp.date || exp.created_at).toLocaleDateString('en-PK')}</td>
                   <td className="px-6 py-4">
                     <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold uppercase">
                       {exp.category}
