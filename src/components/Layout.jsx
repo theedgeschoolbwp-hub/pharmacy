@@ -244,6 +244,9 @@ function Layout() {
             {hasAccess('trash', ['admin']) && (
               <NavItem to="/trash" icon="🗑️" label="Trash Bin" active={location.pathname === '/trash'} onClick={() => setSidebarOpen(false)} />
             )}
+            {hasAccess('settings', ['admin']) && (
+              <NavItem to="/settings" icon="⚙️" label="Settings" active={location.pathname === '/settings'} onClick={() => setSidebarOpen(false)} />
+            )}
             <NavItem to="/support" icon="🆘" label="Help & Support" active={location.pathname === '/support'} onClick={() => setSidebarOpen(false)} />
           </ul>
         </nav>

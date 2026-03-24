@@ -21,6 +21,7 @@ import ProfitLoss from './pages/ProfitLoss'
 import Users from './pages/Users'
 import Support from './pages/Support'
 import TrashBin from './pages/TrashBin'
+import Settings from './pages/Settings'
 
 export default function App() {
   return (
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/support" element={<Support />} />
             <Route path="/trash" element={<TrashBin />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
 
           {/* Fallback */}
