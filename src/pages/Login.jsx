@@ -48,7 +48,7 @@ export default function Login() {
         const userData = data[0]
         // Cache locally for offline fallback
         await db.users.put({ ...userData, password_hash: pwHash })
-        localStorage.setItem('user_pw_hash', pwHash)
+        sessionStorage.setItem('user_pw_hash', pwHash)
         login(userData)
       } else {
         // ── Offline login from IndexedDB ──────────────────────────────────

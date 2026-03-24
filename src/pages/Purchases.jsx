@@ -212,7 +212,7 @@ export default function Purchases() {
       </div>
 
       {/* Search */}
-      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-sm">
+      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 w-full md:max-w-sm">
         <Search size={15} className="text-gray-400" />
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search by invoice or supplier…"

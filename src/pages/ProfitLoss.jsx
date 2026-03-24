@@ -85,8 +85,8 @@ export default function ProfitLoss() {
           supabase.from('expenses')
             .select('amount, category')
             .eq('shop_id', shopId)
-            .gte('created_at', start)
-            .lte('created_at', end),
+            .gte('date', start.split('T')[0])
+            .lte('date', end.split('T')[0]),
         ])
 
         const sales = salesRes.data || []
@@ -147,17 +147,17 @@ export default function ProfitLoss() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <BarChart2 size={22} className="text-blue-600" /> Profit & Loss
           </h1>
           <p className="text-xs text-gray-400 mt-0.5">Financial performance summary</p>
         </div>
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg overflow-x-auto">
           {FILTERS.map(f => (
             <button key={f.value} onClick={() => setFilter(f.value)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${filter === f.value ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition whitespace-nowrap ${filter === f.value ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
               {f.label}
             </button>
           ))}

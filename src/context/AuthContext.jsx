@@ -20,11 +20,11 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const restoreHash = async () => {
       if (!user?.id) return
-      if (localStorage.getItem('user_pw_hash')) return // already cached
+      if (sessionStorage.getItem('user_pw_hash')) return // already cached
       try {
         const localUser = await db.users.get(user.id)
         if (localUser?.password) {
-          localStorage.setItem('user_pw_hash', localUser.password)
+          sessionStorage.setItem('user_pw_hash', localUser.password)
         }
       } catch (_) { /* IndexedDB might be empty — user must re-login once */ }
     }
@@ -76,7 +76,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('originalUser')
     localStorage.removeItem('shop_name')
     localStorage.removeItem('shop_logo')
-    localStorage.removeItem('user_pw_hash')
+    sessionStorage.removeItem('user_pw_hash')
   }
 
   return (

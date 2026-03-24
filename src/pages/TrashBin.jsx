@@ -26,7 +26,7 @@ function TrashBin() {
             const sid = String(user.shop_id)
             const filtered = all
                 .filter(x => {
-                    try { return String(JSON.parse(x.data || '{}').shop_id) === sid } catch { return true }
+                    try { return String(JSON.parse(x.data || '{}').shop_id) === sid } catch { return false }
                 })
                 .sort((a, b) => new Date(b.deleted_at) - new Date(a.deleted_at))
             setTrashItems(filtered)

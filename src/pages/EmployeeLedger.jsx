@@ -75,7 +75,7 @@ export default function EmployeeLedger() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
           <p className="text-xs text-purple-500 font-medium">Monthly Salary</p>
           <p className="text-lg font-bold text-purple-700">{fmt(monthlySalary)}</p>

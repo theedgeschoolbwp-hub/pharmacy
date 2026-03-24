@@ -20,7 +20,7 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
             const hashed = await hashPassword(password)
 
             // ── Check 1: localStorage cached hash (fastest, set at login) ──
-            const cachedHash = localStorage.getItem('user_pw_hash')
+            const cachedHash = sessionStorage.getItem('user_pw_hash')
             if (cachedHash && cachedHash === hashed) {
                 onConfirm()
                 return
@@ -30,7 +30,7 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
             try {
                 const localUser = await db.users.get(user?.id)
                 if (localUser?.password === hashed) {
-                    localStorage.setItem('user_pw_hash', hashed) // re-cache
+                    sessionStorage.setItem('user_pw_hash', hashed) // re-cache
                     onConfirm()
                     return
                 }
@@ -46,7 +46,7 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
                     })
                     if (result && result.success && result.user?.id) {
                         // Cache for next time so future checks are instant
-                        localStorage.setItem('user_pw_hash', hashed)
+                        sessionStorage.setItem('user_pw_hash', hashed)
                         try { await db.users.put({ id: result.user.id, username: result.user.username, password: hashed, shop_id: result.user.shop_id, role: result.user.role, is_active: true }) } catch (_) {}
                         onConfirm()
                         return

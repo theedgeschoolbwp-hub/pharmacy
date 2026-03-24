@@ -120,7 +120,7 @@ export default function CustomerLedger() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center">
           <p className="text-xs text-red-500 font-medium">Total Debit</p>
           <p className="text-lg font-bold text-red-700">{fmt(totalDebit)}</p>

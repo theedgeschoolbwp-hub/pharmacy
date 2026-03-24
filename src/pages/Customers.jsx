@@ -141,7 +141,7 @@ export default function Customers() {
       </div>
 
       {/* Search */}
-      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-sm">
+      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 w-full md:max-w-sm">
         <Search size={15} className="text-gray-400" />
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search name or phone…"
@@ -175,7 +175,7 @@ export default function Customers() {
                     <p className="text-xs text-green-500 font-medium">Clear</p>
                   )}
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   {(c.balance || 0) > 0 && (
                     <button onClick={() => openPayment(c)} className="p-1.5 rounded hover:bg-green-50 text-green-500" title="Collect Payment">
                       <DollarSign size={14} />

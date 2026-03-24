@@ -147,7 +147,7 @@ export default function Products() {
     return <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-green-100 text-green-700">{qty}</span>
   }
 
-  const margin = form.sale_price && form.cost_price
+  const margin = Number(form.sale_price) > 0 && form.cost_price
     ? (((form.sale_price - form.cost_price) / form.sale_price) * 100).toFixed(0)
     : 0
 
@@ -217,7 +217,7 @@ export default function Products() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(p => {
-                  const m = p.cost_price && p.sale_price ? (((p.sale_price - p.cost_price) / p.sale_price) * 100).toFixed(0) : 0
+                  const m = p.cost_price && Number(p.sale_price) > 0 ? (((p.sale_price - p.cost_price) / p.sale_price) * 100).toFixed(0) : 0
                   return (
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-2.5 font-medium text-gray-800">
