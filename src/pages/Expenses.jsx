@@ -14,7 +14,7 @@ function Expenses() {
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
 
-  const [form, setForm] = useState({ category: 'Misc', amount: '', note: '' })
+  const [form, setForm] = useState({ category: 'Misc', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
   const [summary, setSummary] = useState({ today: 0, monthly: 0 })
   const [selected, setSelected] = useState([])
   const [showPasswordModal, setShowPasswordModal] = useState(false)
@@ -100,7 +100,7 @@ function Expenses() {
         if (error) throw error
       }
       setEditingId(null)
-      setForm({ category: 'Misc', amount: '', note: '' })
+      setForm({ category: 'Misc', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
       setShowForm(false)
       fetchExpenses()
     } catch (error) {
@@ -115,7 +115,7 @@ function Expenses() {
           await db.expenses.add(offlineData)
         }
         setEditingId(null)
-        setForm({ category: 'Misc', amount: '', note: '' })
+        setForm({ category: 'Misc', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
         setShowForm(false)
         fetchExpenses()
         alert('Offline mode: Saved locally. Will sync automatically when online. 🔄')
@@ -128,7 +128,7 @@ function Expenses() {
   }
 
   const handleEdit = (exp) => {
-    setForm({ category: exp.category, amount: exp.amount, note: exp.note || '' })
+    setForm({ category: exp.category, amount: exp.amount, note: exp.note || '', date: exp.date || exp.created_at?.split('T')[0] || new Date().toISOString().split('T')[0] })
     setEditingId(exp.id)
     setShowForm(true)
   }
@@ -278,7 +278,7 @@ function Expenses() {
             </button>
           )}
           <button
-            onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ category: 'Misc', amount: '', note: '' }) }}
+            onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ category: 'Misc', amount: '', note: '', date: new Date().toISOString().split('T')[0] }) }}
             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition shadow-lg shadow-blue-100 font-bold"
           >
             {showForm ? 'Cancel' : '+ Add Expense'}
@@ -309,6 +309,16 @@ function Expenses() {
                 onChange={e => setForm({ ...form, amount: e.target.value })}
                 className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                 placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <input
+                type="date"
+                required
+                value={form.date}
+                onChange={e => setForm({ ...form, date: e.target.value })}
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
             <div className="md:col-span-2">
@@ -378,7 +388,7 @@ function Expenses() {
                   <td className="px-6 py-4 text-sm text-gray-600 italic">{exp.note || '-'}</td>
                   <td className="px-6 py-4 text-right font-bold text-gray-900">Rs. {exp.amount.toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">
-                    <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition">
+                    <div className="flex justify-center gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
                       <button onClick={() => handleEdit(exp)} className="text-blue-500 hover:text-blue-700 font-bold text-sm">Edit</button>
                       <button onClick={() => requestDelete([exp.id])} className="text-red-500 hover:text-red-700 font-bold text-sm">Delete</button>
                     </div>

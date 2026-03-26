@@ -138,8 +138,8 @@ function Users() {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 md:p-6 space-y-4">
+      <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">👨‍💼 Users</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -247,7 +247,8 @@ function Users() {
         <div className="text-center py-12"><p className="text-gray-400 text-lg">No users yet</p></div>
       ) : (
         <div className="bg-white rounded-xl shadow overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="min-w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User Info</th>
@@ -258,7 +259,7 @@ function Users() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {users.map(u => (
-                <tr key={u.id} className="hover:bg-gray-50">
+                <tr key={u.id} className="hover:bg-gray-50 group">
                   <td className="px-6 py-4">
                     <div className="font-bold text-gray-800">
                       {u.username} {u.id === user.id && <span className="text-xs text-blue-500 font-normal ml-1">(You)</span>}
@@ -276,14 +277,17 @@ function Users() {
                       {u.is_active ? '✅ Active' : '❌ Inactive'}
                     </button>
                   </td>
-                  <td className="px-6 py-4 flex gap-3">
-                    <button onClick={() => handleEdit(u)} className="text-blue-500 hover:text-blue-700 text-sm font-medium">Edit</button>
-                    <button onClick={() => handleDelete(u.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
+                      <button onClick={() => handleEdit(u)} className="text-blue-500 hover:text-blue-700 text-sm font-medium">Edit</button>
+                      <button onClick={() => handleDelete(u.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
